@@ -1,0 +1,299 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "iotHubName": {
+      "type": "string",
+      "minLength": 3,
+      "metadata": {
+        "description": "Name of the IoT Hub instance to provision."
+      }
+    },
+    "iotHubSkuName": {
+      "type": "string",
+      "allowedValues": [
+        "F1",
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "defaultValue": "F1",
+      "metadata": {
+        "description": "One of the supported SKUs: F1, S1 or S2"
+      }
+    },
+    "iotHubCapacityUnits": {
+      "type": "int",
+      "minValue": 1,
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Number of desired IoT Hub units. Restricted to 1 unit for F1. Can be set up to maximum number allowed for subscription."
+      }
+    },
+    "d2cMessageRetentionInDaysPeriod": {
+      "type": "int",
+      "minValue": 1,
+      "maxValue": 7,
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Retention time in days for device-to-cloud messages."
+      }
+    },
+    "d2cPartitionCount": {
+      "type": "int",
+      "minValue": 2,
+      "defaultValue": 2,
+      "metadata": {
+        "description": "Number of desired partitions for device-to-cloud event ingestion."
+      }
+    },
+    "c2dMessagesTTLAsIso8601": {
+      "type": "string",
+      "defaultValue": "PT1H",
+      "metadata": {
+        "description": "Default TTL in ISO_8601 format for cloud-to-device messages. The value can range from PT1M to PT2D (or any other format as per ISO_8601 standards for duration)."
+      }
+    },
+    "c2dMessagesMaxDeliveryCount": {
+      "type": "int",
+      "minValue": 1,
+      "maxValue": 100,
+      "defaultValue": 10,
+      "metadata": {
+        "description": "Maximum delivery count for cloud-to-device messages per-device queues."
+      }
+    },
+    "c2dFeebackMessagesTTLAsIso8601": {
+      "type": "string",
+      "defaultValue": "PT1H",
+      "metadata": {
+        "description": "TTL in ISO_8601 format for service-bound feedback messages. The value can range from PT1M to PT2D (or any other format as per ISO_8601 standards for duration)."
+      }
+    },
+    "c2dFeedbackMessagesMaxDeliveryCount": {
+      "type": "int",
+      "minValue": 1,
+      "maxValue": 100,
+      "defaultValue": 10,
+      "metadata": {
+        "description": "Maximum delivery count for feedback queue."
+      }
+    },
+    "c2dFeedbackMessagesLockDurationAsIso8601": {
+      "type": "string",
+      "defaultValue": "PT60S",
+      "metadata": {
+        "description": "Lock duration in ISO_8601 format for service-bound feedback messages. The value can range from PT5S to PT300S (or any other format as per ISO_8601 standards for duration)."
+      }
+    },
+    "d2cConsumerGroupName": {
+      "type": "string",
+      "minLength": 3,
+      "defaultValue": "cg1",
+      "metadata": {
+        "description": "Name of device-to-cloud consumer group to provision on the IoT Hub instance."
+      }
+    },
+    "iotHubServiceBusName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "iotHubServiceBusKey": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "variables": {
+    "iotHubLocation": "[resourceGroup().location]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2016-02-03",
+      "location": "[variables('iotHubLocation')]",
+      "name": "[parameters('iotHubName')]",
+      "properties": {
+        "eventHubEndpoints": {
+          "events": {
+            "retentionTimeInDays": 1,
+            "partitionCount": 4,
+            "partitionIds": [
+              "0",
+              "1",
+              "2",
+              "3"
+            ],
+            "path": "[parameters('iotHubServiceBusName')]"
+          },
+          "operationsMonitoringEvents": {
+            "retentionTimeInDays": 1,
+            "partitionCount": 4,
+            "partitionIds": [
+              "0",
+              "1",
+              "2",
+              "3"
+            ],
+            "path": "[concat(parameters('iotHubServiceBusName'),'-operationmonitoring')]"
+          }
+        },
+        "routing": {
+          "endpoints": {
+            "serviceBusQueues": [],
+            "serviceBusTopics": [],
+            "eventHubs": [
+              {
+                "connectionString": "[concat('Endpoint=sb://', parameters('iotHubServiceBusName'), '.servicebus.windows.net:5671/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=', parameters('iotHubServiceBusKey'), ';EntityPath=lightsensordata')]",
+                "name": "LightingSensor",
+                "subscriptionId": "1f76cf07-6e05-4c12-a8c2-39e1993638f8",
+                "resourceGroup": "wmtiotdata"
+              },
+              {
+                "connectionString": "[concat('Endpoint=sb://', parameters('iotHubServiceBusName'), '.servicebus.windows.net:5671/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=', parameters('iotHubServiceBusKey'), ';EntityPath=thresholddata')]",
+                "name": "Threshold",
+                "subscriptionId": "1f76cf07-6e05-4c12-a8c2-39e1993638f8",
+                "resourceGroup": "wmtiotdata"
+              },
+              {
+                "connectionString": "[concat('Endpoint=sb://', parameters('iotHubServiceBusName'), '.servicebus.windows.net:5671/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=', parameters('iotHubServiceBusKey'), ';EntityPath=miscdata')]",
+                "name": "Misc",
+                "subscriptionId": "1f76cf07-6e05-4c12-a8c2-39e1993638f8",
+                "resourceGroup": "wmtiotdata"
+              },
+              {
+                "connectionString": "[concat('Endpoint=sb://', parameters('iotHubServiceBusName'), '.servicebus.windows.net:5671/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=', parameters('iotHubServiceBusKey'), ';EntityPath=energydata')]",
+                "name": "Energy",
+                "subscriptionId": "1f76cf07-6e05-4c12-a8c2-39e1993638f8",
+                "resourceGroup": "wmtiotdata"
+              },
+              {
+                "connectionString": "[concat('Endpoint=sb://', parameters('iotHubServiceBusName'), '.servicebus.windows.net:5671/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=', parameters('iotHubServiceBusKey'), ';EntityPath=compressdata')]",
+                "name": "CompressData",
+                "subscriptionId": "1f76cf07-6e05-4c12-a8c2-39e1993638f8",
+                "resourceGroup": "wmtiotdata"
+              }
+            ]
+          },
+          "routes": [
+            {
+              "name": "EnergyRule",
+              "source": "DeviceMessages",
+              "condition": "payloadType = \"EnergyData\"",
+              "endpointNames": [
+                "Energy"
+              ],
+              "isEnabled": true
+            },
+            {
+              "name": "MiscRule",
+              "source": "DeviceMessages",
+              "condition": "payloadType = \"Misc\"",
+              "endpointNames": [
+                "Misc"
+              ],
+              "isEnabled": true
+            },
+            {
+              "name": "ThresholdRule",
+              "source": "DeviceMessages",
+              "condition": "payloadType = \"Threshold\"",
+              "endpointNames": [
+                "Threshold"
+              ],
+              "isEnabled": true
+            },
+            {
+              "name": "SensorRule",
+              "source": "DeviceMessages",
+              "condition": "payloadType = \"Sensor\"",
+              "endpointNames": [
+                "LightingSensor"
+              ],
+              "isEnabled": true
+            },
+            {
+              "name": "LightingRule",
+              "source": "DeviceMessages",
+              "condition": "payloadType = \"Lighting\"",
+              "endpointNames": [
+                "LightingSensor"
+              ],
+              "isEnabled": true
+            },
+            {
+              "name": "CompressDataRule",
+              "source": "DeviceMessages",
+              "condition": "payloadType = \"Compressed\"",
+              "endpointNames": [
+                "CompressData"
+              ],
+              "isEnabled": true
+            }
+          ],
+          "fallbackRoute": {
+            "name": "$fallback",
+            "source": "DeviceMessages",
+            "condition": "true",
+            "endpointNames": [
+              "events"
+            ],
+            "isEnabled": true
+          }
+        },
+        "storageEndpoints": {
+          "$default": {
+            "sasTtlAsIso8601": "PT1H",
+            "connectionString": "",
+            "containerName": ""
+          }
+        },
+        "cloudToDevice": {
+          "defaultTtlAsIso8601": "[parameters('c2dMessagesTTLAsIso8601')]",
+          "maxDeliveryCount": "[parameters('c2dMessagesMaxDeliveryCount')]",
+          "feedback": {
+            "maxDeliveryCount": "[parameters('c2dFeedbackMessagesMaxDeliveryCount')]",
+            "ttlAsIso8601": "[parameters('c2dFeebackMessagesTTLAsIso8601')]",
+            "lockDurationAsIso8601": "[parameters('c2dFeedbackMessagesLockDurationAsIso8601')]"
+          },
+          "operationsMonitoringProperties": {
+            "events": {
+              "None": "None",
+              "Connections": "None",
+              "DeviceTelemetry": "None",
+              "C2DCommands": "None",
+              "DeviceIdentityOperations": "None",
+              "FileUploadOperations": "None"
+            }
+          }
+        },
+        "location": "[resourceGroup().location]"
+      },
+      "sku": {
+        "name": "[parameters('iotHubSkuName')]",
+        "capacity": "[parameters('iotHubCapacityUnits')]"
+      },
+      "type": "Microsoft.Devices/iotHubs"
+    },
+    {
+      "apiVersion": "2016-02-03",
+      "type": "Microsoft.Devices/IotHubs/eventhubEndpoints/ConsumerGroups",
+      "name": "[concat(parameters('iotHubName'), '/events/cg2')]",
+      "dependsOn": [
+        "[concat('Microsoft.Devices/Iothubs/', parameters('iotHubName'))]"
+      ]
+    },
+    {
+      "apiVersion": "2016-02-03",
+      "dependsOn": [
+        "[concat('Microsoft.Devices/iothubs/', parameters('iotHubName'))]"
+      ],
+      "name": "[concat(parameters('iotHubName'), '/events/',parameters('d2cConsumerGroupName'))]",
+      "type": "Microsoft.Devices/iotHubs/eventhubEndpoints/ConsumerGroups"
+    }
+  ],
+  "outputs": {
+    "iotHubKeys": {
+      "value": "[listKeys(resourceId('Microsoft.Devices/iotHubs', parameters('iotHubName')), '2016-02-03')]",
+      "type": "object"
+    }
+  }
+}
